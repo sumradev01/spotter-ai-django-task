@@ -26,7 +26,7 @@ class Book(models.Model):
     book_lang = models.CharField(max_length=50)
     book_reviews = models.IntegerField()
     book_edition = models.CharField(max_length=100)
-    description = models.TextField(max_length=500)  # New description field
+    description = models.TextField(max_length=500)  
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -35,7 +35,7 @@ class Book(models.Model):
 
 class Favourite(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    book = models.ForeignKey('Book', on_delete=models.CASCADE)  # Ensure this references the 'Book' model correctly
+    book = models.ForeignKey('Book', on_delete=models.CASCADE) 
 
     class Meta:
         unique_together = (('user', 'book'),)

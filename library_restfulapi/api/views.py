@@ -6,16 +6,19 @@ from .serializers import BookSerializer, AuthorSerializer, FavouriteSerializer
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from rest_framework.response import Response
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view,action, permission_classes
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from rest_framework import viewsets, status,permissions
-from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-from rest_framework.decorators import api_view, permission_classes
+
+import pandas as pd
+from threading import Lock
+import os
+
 
 
 
@@ -52,9 +55,9 @@ class AuthorViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            permission_classes = [permissions.IsAuthenticated]  # Require authentication for these actions
+            permission_classes = [permissions.IsAuthenticated]  # Require authentication
         else:
-            permission_classes = [permissions.AllowAny]  # Allow read-only access for any user
+            permission_classes = [permissions.AllowAny]  # read-only access for any user
         return [permission() for permission in permission_classes]
 
 
@@ -100,7 +103,11 @@ class FavouriteViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        
+        if Favourite.objects.filter(user=user).count() >= 20:
+            return Response(
+                {"detail": "You cannot have more than 20 favorites."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         # If  not exist, then create favorite
         
         favourite = Favourite.objects.create(user=user, book=book)
@@ -124,7 +131,7 @@ class FavouriteViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         
-        # users only see their own favorites
+        
         return self.queryset.filter(user=self.request.user)
 
     def get_recommendations(self, favorite_books, num_recommendations=5):
@@ -159,3 +166,125 @@ class FavouriteViewSet(viewsets.ModelViewSet):
         recommended_books = [Book.objects.all()[int(idx)] for idx, score in sorted_books[:num_recommendations]]
         
         return recommended_books
+
+
+# Global variables for caching
+# df_cache = None
+# tfidf_matrix_cache = None
+# vectorizer_cache = None
+
+# class FavouriteViewSet(viewsets.ViewSet):
+    
+#     permission_classes = [IsAuthenticated]
+                     
+#     df = None
+#     tfidf_matrix = None
+#     vectorizer = None
+#     book_id_to_index = {}
+#     data_loaded = False
+#     load_lock = Lock()
+
+#     @classmethod
+#     def load_data(cls):
+        
+#         """
+#         Load the Parquet file
+#         """
+#         with cls.load_lock:
+#             if not cls.data_loaded:
+#                 # print("Loading data and initializing TF-IDF matrix...")
+#                 current_dir = os.path.dirname(os.path.abspath(__file__))
+#                 parquet_path = os.path.join(current_dir, '..', 'output.parquet')
+                
+#                 # specific columns 
+#                 cls.df = pd.read_parquet(parquet_path, columns=['book_id', 'book_title', 'description'])
+                
+#                    # 'book_id' is a string
+                   
+#                 cls.df['book_id'] = cls.df['book_id'].astype(str).str.strip()
+                
+#                 # combined_text
+                   
+#                 cls.df['combined_text'] = cls.df['book_title'].fillna('') + ' ' + cls.df['description'].fillna('')
+                
+#                 # Initialize and fit the TF-IDF vectorizer
+#                 cls.vectorizer = TfidfVectorizer()
+#                 cls.tfidf_matrix = cls.vectorizer.fit_transform(cls.df['combined_text'].astype(str))
+                
+#                 # mapping book_id to DataFrame index for quick lookup
+                
+#                 cls.book_id_to_index = {book_id: idx for idx, book_id in cls.df['book_id'].items()}
+                
+#                 cls.data_loaded = True
+#                 print("Data loaded and TF-IDF matrix initialized.")
+
+#     def create(self, request, *args, **kwargs):
+#         user = request.user
+
+#         # Check if the user already has 20 favorites
+#         current_favorites_count = Favourite.objects.filter(user=user).count()
+#         if current_favorites_count >= 20:
+#             return Response({"detail": "You cannot have more than 20 favorites."}, status=status.HTTP_400_BAD_REQUEST)
+
+#         # Load data if not already loaded
+#         if not self.__class__.data_loaded:
+#             self.__class__.load_data()
+
+#         # Extract 'book_id' from the request, ensuring it is provided
+#         book_id = request.data.get('book_id')
+#         if not book_id:
+#             return Response({"detail": "Book ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+#         book_id = book_id.strip()
+
+#         # Lookup the book index using the precomputed dictionary
+        
+#         book_idx = self.__class__.book_id_to_index.get(book_id)
+#         if book_idx is None:
+#             return Response({"detail": "Book not found."}, status=status.HTTP_404_NOT_FOUND)
+
+#         # Retrieve selected book details
+#         book = self.__class__.df.iloc[book_idx]
+#         print(f"Selected Book: {book['book_title']}")
+
+#         # Compute cosine similarity 
+#         # Since tfidf_matrix is a sparse matrix, this operation is efficient
+        
+#         book_vector = self.__class__.tfidf_matrix[book_idx]
+#         similarity_scores = cosine_similarity(book_vector, self.__class__.tfidf_matrix).flatten()
+
+#         # Exclude the selected book
+        
+#         similarity_scores[book_idx] = -1
+
+#         # Get the indices of the top N recommended books
+#         num_recommendations = 5
+#         top_indices = similarity_scores.argsort()[-num_recommendations:][::-1]
+
+#            # Retrieve recommended books from the DataFrame
+#         recommended_books = self.__class__.df.iloc[top_indices]
+
+        
+#         response_data = {
+#             "favorite": {
+#                 "book_id": book['book_id'],
+#                 "book_title": book['book_title']
+#             },
+#             "recommended_books": [
+#                 {"book_id": row.book_id, "book_title": row.book_title}
+#                 for _, row in recommended_books.iterrows()
+#             ]
+#         }
+
+#         return Response(response_data, status=status.HTTP_201_CREATED)
+    
+    
+#     def list(self, request, *args, **kwargs):
+#         user = request.user
+#         # Fetch data from the database
+#         favorites = Favourite.objects.filter(user=user)
+#         serializer = FavouriteSerializer(favorites, many=True)
+
+#         return Response({"favorites": serializer.data}, status=status.HTTP_200_OK)
+    
+    

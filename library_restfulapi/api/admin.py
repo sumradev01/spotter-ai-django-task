@@ -6,5 +6,5 @@ from .models import Author, Book, Favourite
 
 admin.site.register(Author)
 admin.site.register(Book)
-# admin.site.register(User)
+
 admin.site.register(Favourite)

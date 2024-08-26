@@ -105,8 +105,8 @@ REST_FRAMEWORK = {
 
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),  # Set access token to expire after one day
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),  # Refresh token already set to expire after one day
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),  # expire after one day
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),  #  expire after one day
 }
 
 # Internationalization

@@ -8,10 +8,11 @@ from .models import Book, Author,Favourite
 class AuthorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Author
-        fields = '__all__'  # Or list specific fields you want to include
+        fields = '__all__'  
 
     def create(self, validated_data):
-        # Check if an author with the same name and country already exists
+        
+        # Check if an author already exists
         author_name = validated_data.get('author_name')
         author_country = validated_data.get('author_country')
 
@@ -48,6 +49,7 @@ class BookSerializer(serializers.ModelSerializer):
     
     
     def create(self, validated_data):
+        
         # Check if a book with the same title and author already exists
         book_title = validated_data.get('book_title')
         book_author = validated_data.get('book_author')
@@ -71,5 +73,4 @@ class FavouriteSerializer(serializers.ModelSerializer):
         model = Favourite
         fields = ['id', 'book', 'book_title']  #  'book' (for input),'book_title' (for output)
         
-    #  def get_book_table_id(self, obj):
-    #     return obj.book.book_id
+    
